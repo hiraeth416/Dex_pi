@@ -4,3 +4,5 @@
 [submodule "third_party/libero"]
 	path = third_party/libero
 	url = https://github.com/Lifelong-Robot-Learning/LIBERO.git
+[submodule "dexcanvas"]
+	url = http://192.168.10.116/ai/dexcanvas.git
