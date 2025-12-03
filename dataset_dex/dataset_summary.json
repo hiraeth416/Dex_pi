@@ -1,0 +1,10 @@
+{
+  "num_episodes": 1,
+  "max_len": 1024,
+  "load_active_only": true,
+  "filters": {
+    "objects": null,
+    "manipulation_types": null,
+    "min_rating": null
+  }
+}

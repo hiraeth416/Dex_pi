@@ -207,6 +207,72 @@ class FakeDataConfig(DataConfigFactory):
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         return DataConfig(repo_id=self.repo_id)
 
+@dataclasses.dataclass(frozen=True)
+class DexDataConfig(DataConfigFactory):
+    """Data config for DexCanvas dataset converted to pi0 format.
+    
+    The dataset should be in the format created by dexcanvas/scripts/convert_to_pi0_format.py
+    with states (current frame's urdf_dof) and actions (next frame's urdf_dof).
+    
+    Camera naming:
+    - Dataset provides: ego_rgb (main camera) and side_rgb (optional)
+    - DexInputs transform remaps to pi0 format: ego_rgb->base_0_rgb, side_rgb->left_wrist_0_rgb
+    """
+    # Whether to load side camera as side_rgb (default: False, only ego_rgb)
+    use_side_camera: bool = False
+    # Default prompt if not specified in metadata
+    default_prompt: str | None = None
+    
+    # Model transforms factory
+    model_transforms: tyro.conf.Suppress[GroupFactory] = dataclasses.field(
+        default_factory=ModelTransformFactory
+    )
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        base_config = self.create_base_config(assets_dirs, model_config)
+        
+        # Import here to avoid circular dependency
+        import openpi.policies.dex_policy as dex_policy
+        
+        # Repack transform to flatten the image dict structure from the dataset
+        # Dataset returns: {"image": {"ego_rgb": ..., "side_rgb": ...}, "state": ..., "actions": ..., "prompt": ...}
+        # We need to flatten it to: {"ego_rgb": ..., "side_rgb": ..., "state": ..., "actions": ..., "prompt": ...}
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "ego_rgb": "image.ego_rgb",
+                            "side_rgb": "image.side_rgb",
+                        },
+                        "state": "state",
+                        "actions": "actions",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+        
+        # For DexCanvas dataset, we need to use DexInputs to remap camera keys
+        # from ego_rgb/side_rgb to base_0_rgb/left_wrist_0_rgb/right_wrist_0_rgb
+        return dataclasses.replace(
+            base_config,
+            repack_transforms=repack_transform,
+            model_transforms=self.model_transforms(model_config),
+            # DexCanvas already has prompts in metadata, but we can override if needed
+            # Also add DexInputs to remap camera keys to pi0 format
+            data_transforms=_transforms.Group(
+                inputs=[
+                    *(
+                        [_transforms.InjectDefaultPrompt(self.default_prompt)]
+                        if self.default_prompt
+                        else []
+                    ),
+                    dex_policy.DexInputs(model_type=model_config.model_type),
+                ]
+            ),
+        )
 
 @dataclasses.dataclass(frozen=True)
 class SimpleDataConfig(DataConfigFactory):
@@ -955,6 +1021,33 @@ _CONFIGS = [
         overwrite=True,
         exp_name="debug_pi05",
         wandb_enabled=False,
+    ),
+
+    #debug for dex
+    TrainConfig(
+        name="debug_dex",
+        # Path to your converted DexCanvas dataset directory
+        data=DexDataConfig(
+            repo_id="dataset_dex",  # Update this to point to your dataset directory
+            use_side_camera=False,  # Set to True to also load side camera as left_wrist_0_rgb
+            default_prompt=None,  # Will use prompts from metadata
+        ),
+        batch_size=8,
+        # Model configuration:
+        # - action_dim: Set to 32 to match pretrained pi0.5 model (will pad 26->32)
+        # - The model will output 32-dim actions, but DexOutputs will extract first 26
+        model=pi0_config.Pi0Config(
+            action_dim=32,  # Match pretrained model (DexCanvas has 26 DOF, will be padded)
+            action_horizon=50,  # Number of future actions to predict
+            paligemma_variant="dummy",  # Use "dummy" for testing, "gemma_2b" for real training
+            action_expert_variant="dummy",  # Use "dummy" for testing, "gemma_300m" for real training
+        ),
+        save_interval=100,
+        overwrite=True,
+        exp_name="debug_dex",
+        num_train_steps=10,
+        num_workers=4,  # Increase for faster data loading
+        wandb_enabled=False,  # Enable for experiment tracking
     ),
     #
     # RoboArena configs.
