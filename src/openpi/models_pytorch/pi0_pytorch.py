@@ -224,6 +224,9 @@ class PI0Pytorch(nn.Module):
         num_lang_embs = lang_emb.shape[1]
         att_masks += [0] * num_lang_embs
 
+        print("="*20)
+        print(f"Embed prefix embs shapes: {[e.shape for e in embs]}\n")
+        print("="*20)
         embs = torch.cat(embs, dim=1)
         pad_masks = torch.cat(pad_masks, dim=1)
         att_masks = torch.tensor(att_masks, dtype=torch.bool, device=pad_masks.device)

@@ -228,6 +228,20 @@ class DexDataConfig(DataConfigFactory):
         default_factory=ModelTransformFactory
     )
 
+    def _load_norm_stats(self, assets_dir: epath.Path, asset_id: str | None) -> dict[str, _transforms.NormStats] | None:
+        """Load norm stats from dataset_dex folder instead of assets_dir."""
+        if asset_id is None:
+            return None
+        try:
+            # For DexCanvas, load from dataset_dex folder directly
+            data_assets_dir = str(asset_id) if asset_id else "dataset_dex"
+            norm_stats = _normalize.load(_download.maybe_download(data_assets_dir))
+            logging.info(f"Loaded DexCanvas norm stats from {data_assets_dir}")
+            return norm_stats
+        except FileNotFoundError:
+            logging.info(f"Norm stats not found in {data_assets_dir}, skipping.")
+        return None
+
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         base_config = self.create_base_config(assets_dirs, model_config)
@@ -236,15 +250,19 @@ class DexDataConfig(DataConfigFactory):
         import openpi.policies.dex_policy as dex_policy
         
         # Repack transform to flatten the image dict structure from the dataset
-        # Dataset returns: {"image": {"ego_rgb": ..., "side_rgb": ...}, "state": ..., "actions": ..., "prompt": ...}
-        # We need to flatten it to: {"ego_rgb": ..., "side_rgb": ..., "state": ..., "actions": ..., "prompt": ...}
+        # Dataset returns: {"image": {"ego_rgb": ..., "side_rgb": ...}, "image_mask": {...}, "state": ..., "actions": ..., "prompt": ...}
+        # We need to keep the nested structure: {"image": {"ego_rgb": ..., "side_rgb": ...}, "state": ..., "actions": ..., "prompt": ...}
         repack_transform = _transforms.Group(
             inputs=[
                 _transforms.RepackTransform(
                     {
-                        "images": {
-                            "ego_rgb": "image.ego_rgb",
-                            "side_rgb": "image.side_rgb",
+                        "image": {
+                            "ego_rgb": "image/ego_rgb",
+                            "side_rgb": "image/side_rgb",
+                        },
+                        "image_mask": {
+                            "ego_rgb": "image_mask/ego_rgb",
+                            "side_rgb": "image_mask/side_rgb",
                         },
                         "state": "state",
                         "actions": "actions",
@@ -262,6 +280,7 @@ class DexDataConfig(DataConfigFactory):
             model_transforms=self.model_transforms(model_config),
             # DexCanvas already has prompts in metadata, but we can override if needed
             # Also add DexInputs to remap camera keys to pi0 format
+            # And add DexOutputs to extract 26 DOF from 32-dim model output
             data_transforms=_transforms.Group(
                 inputs=[
                     *(
@@ -270,6 +289,9 @@ class DexDataConfig(DataConfigFactory):
                         else []
                     ),
                     dex_policy.DexInputs(model_type=model_config.model_type),
+                ],
+                outputs=[
+                    dex_policy.DexOutputs(),
                 ]
             ),
         )
@@ -1039,6 +1061,7 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(
             action_dim=32,  # Match pretrained model (DexCanvas has 26 DOF, will be padded)
             action_horizon=50,  # Number of future actions to predict
+            pi05=True,  # Use pi0.5 architecture
             paligemma_variant="dummy",  # Use "dummy" for testing, "gemma_2b" for real training
             action_expert_variant="dummy",  # Use "dummy" for testing, "gemma_300m" for real training
         ),

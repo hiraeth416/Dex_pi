@@ -290,6 +290,7 @@ def create_dex_data_loader(
                 "Normalization stats not found. Training without normalization. "
                 "Run `scripts/compute_norm_stats.py --config-name=<your-config>` to compute them."
             )
+            import ipdb; ipdb.set_trace()
         else:
             norm_stats = data_config.norm_stats
     

@@ -21,7 +21,7 @@ import openpi.shared.array_typing as at
 import openpi.shared.nnx_utils as nnx_utils
 import openpi.training.checkpoints as _checkpoints
 import openpi.training.config as _config
-import openpi.training.data_loader as _data_loader
+import openpi.training.data_loader_dex as _data_loader
 import openpi.training.optimizer as _optimizer
 import openpi.training.sharding as sharding
 import openpi.training.utils as training_utils
@@ -152,7 +152,6 @@ def train_step(
 
     train_rng = jax.random.fold_in(rng, state.step)
     observation, actions = batch
-    #import ipdb; ipdb.set_trace()
 
     # Filter out frozen params.
     diff_state = nnx.DiffState(0, config.trainable_filter)
@@ -218,7 +217,7 @@ def main(config: _config.TrainConfig):
     )
     init_wandb(config, resuming=resuming, enabled=config.wandb_enabled)
 
-    data_loader = _data_loader.create_data_loader(
+    data_loader = _data_loader.create_dex_data_loader(
         config,
         sharding=data_sharding,
         shuffle=True,
