@@ -209,10 +209,17 @@ class FakeDataConfig(DataConfigFactory):
 
 @dataclasses.dataclass(frozen=True)
 class DexDataConfig(DataConfigFactory):
-    """Data config for DexCanvas dataset converted to pi0 format.
+    """Data config for DexCanvas dataset.
     
-    The dataset should be in the format created by dexcanvas/scripts/convert_to_pi0_format.py
-    with states (current frame's urdf_dof) and actions (next frame's urdf_dof).
+    Supports two loading modes:
+    1. Direct loading from DexCanvas VLA format (use_direct_loader=True, default)
+       - Loads directly from HuggingFace Hub or local DexCanvas VLA dataset
+       - No intermediate conversion needed
+       - Computes states/actions on-the-fly from mano_urdf_dof
+    
+    2. Converted dataset format (use_direct_loader=False)
+       - Uses pre-converted dataset created by dexcanvas/scripts/convert_to_pi0_format.py
+       - Requires conversion step but loads faster
     
     Camera naming:
     - Dataset provides: ego_rgb (main camera) and side_rgb (optional)
@@ -222,25 +229,13 @@ class DexDataConfig(DataConfigFactory):
     use_side_camera: bool = False
     # Default prompt if not specified in metadata
     default_prompt: str | None = None
+    # Whether to use direct DexCanvas VLA loader (True) or converted format (False)
+    use_direct_loader: bool = True
     
     # Model transforms factory
     model_transforms: tyro.conf.Suppress[GroupFactory] = dataclasses.field(
         default_factory=ModelTransformFactory
     )
-
-    def _load_norm_stats(self, assets_dir: epath.Path, asset_id: str | None) -> dict[str, _transforms.NormStats] | None:
-        """Load norm stats from dataset_dex folder instead of assets_dir."""
-        if asset_id is None:
-            return None
-        try:
-            # For DexCanvas, load from dataset_dex folder directly
-            data_assets_dir = str(asset_id) if asset_id else "dataset_dex"
-            norm_stats = _normalize.load(_download.maybe_download(data_assets_dir))
-            logging.info(f"Loaded DexCanvas norm stats from {data_assets_dir}")
-            return norm_stats
-        except FileNotFoundError:
-            logging.info(f"Norm stats not found in {data_assets_dir}, skipping.")
-        return None
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:

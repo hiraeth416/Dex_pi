@@ -1,185 +1,85 @@
-"""Compute normalization statistics for a config.
+"""Compute normalization statistics for DexCanvas VLA dataset.
 
-This script is used to compute the normalization statistics for a given config. It
-will compute the mean and standard deviation of the data in the dataset and save it
-to the config assets directory.
+Simplified version that directly uses dataset_vla and DataLoader.
 """
 
+import sys
+from pathlib import Path
 import numpy as np
 import tqdm
 import tyro
+from torch.utils.data import DataLoader
 
-import openpi.models.model as _model
 import openpi.shared.normalize as normalize
-import openpi.training.config as _config
-import openpi.training.data_loader as _data_loader
-import openpi.training.data_loader_dex as _data_loader_dex
-import openpi.transforms as transforms
+
+# Add dexcanvas to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "dexcanvas"))
+from dexcanvas import DexCanvasDataset_VLA
 
 
-class RemoveStrings(transforms.DataTransformFn):
-    def __call__(self, x: dict) -> dict:
-        return {k: v for k, v in x.items() if not np.issubdtype(np.asarray(v).dtype, np.str_)}
-
-
-def create_dex_dataloader(
-    data_config: _config.DataConfig,
-    action_horizon: int,
-    batch_size: int,
-    model_config: _model.BaseModelConfig,
-    num_workers: int,
-    use_side_camera: bool,
-    max_frames: int | None = None,
-) -> tuple[_data_loader.Dataset, int]:
-    """Create a DexCanvas-specific dataloader for computing norm stats."""
-    if data_config.repo_id is None:
-        raise ValueError("Data config must have a repo_id")
+def main(
+    dataset_path: str = "/home/sifei/openpi/dexcanvas/data_source/mocap/releases/v0.5/trajectories_preprocessed.lance",
+    output_dir: str = "/home/sifei/openpi/dataset_dex",
+    batch_size: int = 1,
+    num_workers: int = 0,
+    max_batches: int | None = None,
+):
+    """Compute normalization statistics directly from DexCanvas VLA dataset.
     
-    # Create the DexCanvas dataset
-    dataset = _data_loader_dex.create_dex_dataset(
-        data_config, 
-        action_horizon, 
-        model_config,
-        use_side_camera=use_side_camera
+    Args:
+        dataset_path: Path to dataset (HF Hub ID or local path)
+        output_dir: Where to save norm_stats.json
+        batch_size: Batch size for data loading
+        num_workers: Number of workers for DataLoader
+        max_batches: Maximum number of batches to process (None = all)
+    """
+    print(f"Loading dataset from {dataset_path}...")
+    dataset_vla = DexCanvasDataset_VLA(
+        dataset_path=dataset_path,
+        load_active_only=True,
     )
     
-    # Apply transforms
-    dataset = _data_loader.TransformedDataset(
-        dataset,
-        [
-            *data_config.repack_transforms.inputs,
-            *data_config.data_transforms.inputs,
-            # Remove strings since they are not supported by JAX and are not needed to compute norm stats.
-            RemoveStrings(),
-        ],
-    )
-    
-    if max_frames is not None and max_frames < len(dataset):
-        num_batches = max_frames // batch_size
-        shuffle = True
-    else:
-        num_batches = len(dataset) // batch_size
-        shuffle = False
-    
-    data_loader = _data_loader.TorchDataLoader(
-        dataset,
-        local_batch_size=batch_size,
+    print(f"Creating DataLoader with batch_size={batch_size}, num_workers={num_workers}...")
+    dataloader = DataLoader(
+        dataset_vla,
+        batch_size=batch_size,
         num_workers=num_workers,
-        shuffle=shuffle,
-        num_batches=num_batches,
+        shuffle=False,
     )
-    return data_loader, num_batches
-
-
-def create_torch_dataloader(
-    data_config: _config.DataConfig,
-    action_horizon: int,
-    batch_size: int,
-    model_config: _model.BaseModelConfig,
-    num_workers: int,
-    max_frames: int | None = None,
-) -> tuple[_data_loader.Dataset, int]:
-    if data_config.repo_id is None:
-        raise ValueError("Data config must have a repo_id")
-    dataset = _data_loader.create_torch_dataset(data_config, action_horizon, model_config)
-    dataset = _data_loader.TransformedDataset(
-        dataset,
-        [
-            *data_config.repack_transforms.inputs,
-            *data_config.data_transforms.inputs,
-            # Remove strings since they are not supported by JAX and are not needed to compute norm stats.
-            RemoveStrings(),
-        ],
-    )
-    if max_frames is not None and max_frames < len(dataset):
-        num_batches = max_frames // batch_size
-        shuffle = True
-    else:
-        num_batches = len(dataset) // batch_size
-        shuffle = False
-    data_loader = _data_loader.TorchDataLoader(
-        dataset,
-        local_batch_size=batch_size,
-        num_workers=num_workers,
-        shuffle=shuffle,
-        num_batches=num_batches,
-    )
-    return data_loader, num_batches
-
-
-def create_rlds_dataloader(
-    data_config: _config.DataConfig,
-    action_horizon: int,
-    batch_size: int,
-    max_frames: int | None = None,
-) -> tuple[_data_loader.Dataset, int]:
-    dataset = _data_loader.create_rlds_dataset(data_config, action_horizon, batch_size, shuffle=False)
-    dataset = _data_loader.IterableTransformedDataset(
-        dataset,
-        [
-            *data_config.repack_transforms.inputs,
-            *data_config.data_transforms.inputs,
-            # Remove strings since they are not supported by JAX and are not needed to compute norm stats.
-            RemoveStrings(),
-        ],
-        is_batched=True,
-    )
-    if max_frames is not None and max_frames < len(dataset):
-        num_batches = max_frames // batch_size
-    else:
-        # NOTE: this length is currently hard-coded for DROID.
-        num_batches = len(dataset) // batch_size
-    data_loader = _data_loader.RLDSDataLoader(
-        dataset,
-        num_batches=num_batches,
-    )
-    return data_loader, num_batches
-
-
-def main(config_name: str, max_frames: int | None = None):
-    config = _config.get_config(config_name)
-    data_config = config.data.create(config.assets_dirs, config.model)
-
-    # Extract use_side_camera from DexDataConfig if applicable
-    use_side_camera = False
-    if isinstance(config.data, _config.DexDataConfig):
-        use_side_camera = config.data.use_side_camera
-        # Use DexCanvas-specific dataloader
-        data_loader, num_batches = create_dex_dataloader(
-            data_config, 
-            config.model.action_horizon, 
-            config.batch_size, 
-            config.model, 
-            config.num_workers,
-            use_side_camera,
-            max_frames
-        )
-    elif data_config.rlds_data_dir is not None:
-        data_loader, num_batches = create_rlds_dataloader(
-            data_config, config.model.action_horizon, config.batch_size, max_frames
-        )
-    else:
-        data_loader, num_batches = create_torch_dataloader(
-            data_config, config.model.action_horizon, config.batch_size, config.model, config.num_workers, max_frames
-        )
-
-    keys = ["state", "actions"]
+    
+    # Initialize running statistics for state and actions
+    keys = ["mano_urdf_dof"]
     stats = {key: normalize.RunningStats() for key in keys}
-
-    for batch in tqdm.tqdm(data_loader, total=num_batches, desc="Computing stats"):
-        for key in keys:
-            stats[key].update(np.asarray(batch[key]))
-
-    norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
-
-    # For DexCanvas dataset, save to dataset_dex folder
-    if isinstance(config.data, _config.DexDataConfig):
-        output_path = "dataset_dex"
-    else:
-        output_path = config.assets_dirs / data_config.repo_id
     
+    # Process batches
+    total = max_batches if max_batches else len(dataloader)
+    print(f"Computing statistics from {total} batches...")
+    
+    for i, batch in enumerate(tqdm.tqdm(dataloader, total=total, desc="Computing stats")):
+        if max_batches and i >= max_batches:
+            break
+        #import ipdb; ipdb.set_trace()
+        # batch["mano_urdf_dof"] has shape [batch_size, seq_len, robot_dof]
+        # Flatten to [batch_size * seq_len, robot_dof] for statistics
+        urdf_dof = batch["mano_urdf_dof"].numpy()
+        batch_size_actual, seq_len, robot_dof = urdf_dof.shape
+        urdf_dof_flat = urdf_dof.reshape(-1, robot_dof)
+        
+        stats["mano_urdf_dof"].update(urdf_dof_flat)
+    
+    # Get final statistics
+    norm_stats = {key: stat.get_statistics() for key, stat in stats.items()}
+    
+    # Save both as "state" and "actions" for compatibility
+    norm_stats["state"] = norm_stats["mano_urdf_dof"]
+    norm_stats["actions"] = norm_stats["mano_urdf_dof"]
+    
+    # Save to output directory
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
     print(f"Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
+    print("Done!")
 
 
 if __name__ == "__main__":

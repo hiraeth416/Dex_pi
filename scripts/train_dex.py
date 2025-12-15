@@ -21,7 +21,7 @@ import openpi.shared.array_typing as at
 import openpi.shared.nnx_utils as nnx_utils
 import openpi.training.checkpoints as _checkpoints
 import openpi.training.config as _config
-import openpi.training.data_loader_dex as _data_loader
+import openpi.training.data_loader_dex_direct as _data_loader_direct
 import openpi.training.optimizer as _optimizer
 import openpi.training.sharding as sharding
 import openpi.training.utils as training_utils
@@ -217,7 +217,9 @@ def main(config: _config.TrainConfig):
     )
     init_wandb(config, resuming=resuming, enabled=config.wandb_enabled)
 
-    data_loader = _data_loader.create_dex_data_loader(
+    # Use direct DexCanvas VLA data loader
+    logging.info("Using direct DexCanvas VLA data loader")
+    data_loader = _data_loader_direct.create_dex_direct_data_loader(
         config,
         sharding=data_sharding,
         shuffle=True,
