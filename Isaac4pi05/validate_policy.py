@@ -74,7 +74,7 @@ class Args:
     config_name: str = "dex_pi05"
     """Training config name (e.g., 'debug_dex', 'dex_pi05')"""
     
-    checkpoint_dir: str = "/home/sifei/openpi/checkpoints/dex_pi05/dex_test_pi05/9999"
+    checkpoint_dir: str = "openpi/checkpoints/dex_pi05/dex_test_pi05/9999"
     """Path to the checkpoint directory"""
     
     # Isaac Sim parameters
@@ -82,7 +82,7 @@ class Args:
     """Run in headless mode (no GUI)"""
     
     # Robot parameters
-    robot_urdf_path: str = "/home/sifei/openpi/mano_assets/operators/s02/mano_hand.urdf"
+    robot_urdf_path: str = "openpi/mano_assets/operators/s02/mano_hand.urdf"
     """Path to the MANO hand URDF"""
     
     robot_dof: int = 26
@@ -282,10 +282,6 @@ class IsaacSimEnvironment:
         # Use the look_at_to_quaternion function to properly orient camera
         #orientation = self._look_at_to_quaternion(position, look_at)
         orientation = [0.707, 0.0, 0.0, 0.0]  # [0.0, 0.331, 0.0, 0.944]
-        print(f"Creating camera at {prim_path}")
-        print(f"  Position: {position}")
-        print(f"  Look at: {look_at}")
-        print(f"  Orientation (quaternion): {orientation}")
         camera = Camera(
             prim_path=prim_path,
             position=position,
@@ -386,7 +382,7 @@ class IsaacSimEnvironment:
         
         # Check if camera data is valid and create fallback
         if ego_rgba is None or not isinstance(ego_rgba, np.ndarray) or ego_rgba.size == 0:
-            print(f"Warning: ego_camera returned invalid data (None or empty)")
+            print(f"Warning: ego_camera returned invalid data (None:{ego_rgba is None} or empty:{ego_rgba is not None and ego_rgba.size == 0})")
             ego_rgb = np.zeros((self.args.image_height, self.args.image_width, 3), dtype=np.uint8)
         elif len(ego_rgba.shape) != 3:
             print(f"Warning: ego_camera returned invalid shape: {ego_rgba.shape}")
@@ -410,7 +406,7 @@ class IsaacSimEnvironment:
             side_rgba = self.side_camera.get_rgba()
             
             if side_rgba is None or not isinstance(side_rgba, np.ndarray) or side_rgba.size == 0:
-                print(f"Warning: side_camera returned invalid data (None or empty)")
+                print(f"Warning: side_camera returned invalid data (None:{side_rgba is None} or empty:{side_rgba is not None and side_rgba.size == 0})")
                 side_rgb = np.zeros((self.args.image_height, self.args.image_width, 3), dtype=np.uint8)
             elif len(side_rgba.shape) != 3:
                 print(f"Warning: side_camera returned invalid shape: {side_rgba.shape}")
