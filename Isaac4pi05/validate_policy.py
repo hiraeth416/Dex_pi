@@ -74,7 +74,7 @@ class Args:
     config_name: str = "dex_pi05"
     """Training config name (e.g., 'debug_dex', 'dex_pi05')"""
     
-    checkpoint_dir: str = "openpi/checkpoints/dex_pi05/dex_test_pi05/9999"
+    checkpoint_dir: str = "checkpoints/dex_pi05/dex_test_pi05/9999"
     """Path to the checkpoint directory"""
     
     # Isaac Sim parameters
@@ -82,7 +82,7 @@ class Args:
     """Run in headless mode (no GUI)"""
     
     # Robot parameters
-    robot_urdf_path: str = "openpi/mano_assets/operators/s02/mano_hand.urdf"
+    robot_urdf_path: str = "mano_assets/operators/s02/mano_hand.urdf"
     """Path to the MANO hand URDF"""
     
     robot_dof: int = 26
@@ -203,7 +203,7 @@ class IsaacSimEnvironment:
             Robot(
                 prim_path=prim_path,
                 name="mano_hand",
-                position=np.array([0.4, 0.0, 0.5]), # Lift it up a bit
+                position=np.array([0.2, 0.0, 0.5]), # Lift it up a bit
                 orientation=np.array([1.0, 0.0, 0.0, 0.0]),
             )
         )
@@ -228,7 +228,7 @@ class IsaacSimEnvironment:
             DynamicCuboid(
                 prim_path="/World/Cube",
                 name="cube",
-                position=np.array([0.4, 0.0, 0.1]), # In front of the hand
+                position=np.array([0.0, 0.0, 0.1]), # In front of the hand
                 scale=np.array([0.05, 0.05, 0.05]),
                 color=np.array([1.0, 0.0, 0.0]),  # Bright red
                 mass=0.1  # Light mass for easier manipulation
@@ -238,7 +238,7 @@ class IsaacSimEnvironment:
         # Setup Cameras
         # Hand is at (0.4, 0.0, 0.5), cube is at (0.4, 0.0, 0.1)
         # Camera should look at these positions
-        ego_position = np.array([0.0, 0.0, 0.8])  # Above and in front, looking at x=0.4
+        ego_position = np.array([0.0, 0.0, 5.0])  # Above and in front, looking at x=0.4
         ego_target = np.array([0.4, 0.0, 0.3])    # Look at midpoint between hand and cube
         self.ego_camera = self._create_camera("/World/Camera_Ego", ego_position, ego_target)
         
@@ -287,8 +287,8 @@ class IsaacSimEnvironment:
             position=position,
             frequency=20,
             resolution=(self.args.camera_width, self.args.camera_height),
-            #orientation=rot_utils.euler_angles_to_quats(np.array([0, 90, 0]), degrees=True),
-            orientation=orientation,
+            orientation=rot_utils.euler_angles_to_quats(np.array([0, 90, 0]), degrees=True),
+            #orientation=orientation,
         )
         camera.initialize()
         
