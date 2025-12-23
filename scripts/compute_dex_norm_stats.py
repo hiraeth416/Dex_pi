@@ -48,7 +48,7 @@ def main(
     )
     
     # Initialize running statistics for state and actions
-    keys = ["mano_urdf_dof"]
+    keys = ["state", "actions"]
     stats = {key: normalize.RunningStats() for key in keys}
     
     # Process batches
@@ -65,14 +65,12 @@ def main(
         batch_size_actual, seq_len, robot_dof = urdf_dof.shape
         urdf_dof_flat = urdf_dof.reshape(-1, robot_dof)
         
-        stats["mano_urdf_dof"].update(urdf_dof_flat)
+        stats["state"].update(urdf_dof_flat)
+        stats["actions"].update(urdf_dof_flat)
     
     # Get final statistics
     norm_stats = {key: stat.get_statistics() for key, stat in stats.items()}
     
-    # Save both as "state" and "actions" for compatibility
-    norm_stats["state"] = norm_stats["mano_urdf_dof"]
-    norm_stats["actions"] = norm_stats["mano_urdf_dof"]
     
     # Save to output directory
     output_path = Path(output_dir)

@@ -10,8 +10,8 @@ from openpi.training import config as _config
 from openpi.training import data_loader as _data_loader
 
 
-config = _config.get_config("debug_dex")
-checkpoint_dir = "/home/sifei/openpi/checkpoints/debug_dex/dex_test_pi05/9"
+config = _config.get_config("dex_pi05")
+checkpoint_dir = "checkpoints/dex_pi05/dex_test_pi05/9999"
 
 # Create a trained policy.
 policy = _policy_config.create_trained_policy(config, checkpoint_dir)

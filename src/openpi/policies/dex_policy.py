@@ -54,11 +54,14 @@ class DexInputs(transforms.DataTransformFn):
         image_masks = data.get("image_mask", {})
         
         # Create remapped image dict with pi0's expected keys
+        ego_rgb = images.get("ego_rgb")
+        side_rgb = images.get("side_rgb")
+        
         remapped_images = {
-            "base_0_rgb": images.get("ego_rgb"),
-            "left_wrist_0_rgb": images.get("side_rgb"),
+            "base_0_rgb": ego_rgb,
+            "left_wrist_0_rgb": side_rgb if side_rgb is not None else np.zeros_like(ego_rgb),
             # Create dummy right_wrist_0_rgb (not available in DexCanvas)
-            "right_wrist_0_rgb": np.zeros_like(images.get("ego_rgb")),
+            "right_wrist_0_rgb": np.zeros_like(ego_rgb),
         }
         
         remapped_masks = {

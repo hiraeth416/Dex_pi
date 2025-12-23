@@ -1067,6 +1067,39 @@ _CONFIGS = [
         num_workers=4,  # Increase for faster data loading
         wandb_enabled=False,  # Enable for experiment tracking
     ),
+
+    #training for dex
+    TrainConfig(
+        name="dex_pi05",
+        # Path to your converted DexCanvas dataset directory
+        data=DexDataConfig(
+            repo_id="dataset_dex",  # Update this to point to your dataset directory
+            use_side_camera=False,  # Set to True to also load side camera as left_wrist_0_rgb
+            default_prompt=None,  # Will use prompts from metadata
+        ),
+        batch_size=4,
+        # Model configuration:
+        # - action_dim: Set to 32 to match pretrained pi0.5 model (will pad 26->32)
+        # - The model will output 32-dim actions, but DexOutputs will extract first 26
+        model=pi0_config.Pi0Config(
+            action_dim=32,  # Match pretrained model (DexCanvas has 26 DOF, will be padded)
+            action_horizon=10,  # Number of future actions to predict
+            pi05=True,  # Use pi0.5 architecture
+            paligemma_variant="gemma_2b_lora",  # Use "dummy" for testing, "gemma_2b" for real training
+            action_expert_variant="gemma_300m_lora",  # Use "dummy" for testing, "gemma_300m" for real training
+        ),
+        save_interval=1000,
+        overwrite=True,
+        exp_name="dex_pi05",
+        num_train_steps=10000,
+        num_workers=4,  # Increase for faster data loading
+        wandb_enabled=True,  
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
     #
     # RoboArena configs.
     #
