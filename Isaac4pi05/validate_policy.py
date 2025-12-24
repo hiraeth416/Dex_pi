@@ -280,14 +280,13 @@ class IsaacSimEnvironment:
         import isaacsim.core.utils.numpy.rotations as rot_utils
         
         # Use the look_at_to_quaternion function to properly orient camera
-        #orientation = self._look_at_to_quaternion(position, look_at)
         orientation = [0.707, 0.0, 0.0, 0.0]  # [0.0, 0.331, 0.0, 0.944]
         camera = Camera(
             prim_path=prim_path,
             position=position,
             frequency=20,
             resolution=(self.args.camera_width, self.args.camera_height),
-            orientation=rot_utils.euler_angles_to_quats(np.array([0, 90, 0]), degrees=True),
+            orientation=rot_utils.euler_angles_to_quats(np.array([0, 90, 180]), degrees=True),
             #orientation=orientation,
         )
         camera.initialize()
@@ -296,61 +295,6 @@ class IsaacSimEnvironment:
         camera.add_distance_to_image_plane_to_frame()
         
         return camera
-
-    def _look_at_to_quaternion(self, position, target):
-        """Compute quaternion to orient camera from position to look at target."""
-        # Compute forward direction (from camera to target)
-        forward = target - position
-        forward = forward / np.linalg.norm(forward)
-        
-        # World up vector
-        world_up = np.array([0.0, 0.0, 1.0])
-        
-        # Compute right vector
-        right = np.cross(world_up, forward)
-        right_norm = np.linalg.norm(right)
-        if right_norm < 1e-6:
-            # Forward is parallel to world_up, use alternative up
-            world_up = np.array([0.0, 1.0, 0.0])
-            right = np.cross(world_up, forward)
-        right = right / np.linalg.norm(right)
-        
-        # Compute up vector
-        up = np.cross(forward, right)
-        
-        # Build rotation matrix [right, up, forward] (column-wise)
-        rot_matrix = np.array([right, up, forward]).T
-        
-        # Convert rotation matrix to quaternion
-        trace = np.trace(rot_matrix)
-        if trace > 0:
-            s = 0.5 / np.sqrt(trace + 1.0)
-            w = 0.25 / s
-            x = (rot_matrix[2, 1] - rot_matrix[1, 2]) * s
-            y = (rot_matrix[0, 2] - rot_matrix[2, 0]) * s
-            z = (rot_matrix[1, 0] - rot_matrix[0, 1]) * s
-        else:
-            if rot_matrix[0, 0] > rot_matrix[1, 1] and rot_matrix[0, 0] > rot_matrix[2, 2]:
-                s = 2.0 * np.sqrt(1.0 + rot_matrix[0, 0] - rot_matrix[1, 1] - rot_matrix[2, 2])
-                w = (rot_matrix[2, 1] - rot_matrix[1, 2]) / s
-                x = 0.25 * s
-                y = (rot_matrix[0, 1] + rot_matrix[1, 0]) / s
-                z = (rot_matrix[0, 2] + rot_matrix[2, 0]) / s
-            elif rot_matrix[1, 1] > rot_matrix[2, 2]:
-                s = 2.0 * np.sqrt(1.0 + rot_matrix[1, 1] - rot_matrix[0, 0] - rot_matrix[2, 2])
-                w = (rot_matrix[0, 2] - rot_matrix[2, 0]) / s
-                x = (rot_matrix[0, 1] + rot_matrix[1, 0]) / s
-                y = 0.25 * s
-                z = (rot_matrix[1, 2] + rot_matrix[2, 1]) / s
-            else:
-                s = 2.0 * np.sqrt(1.0 + rot_matrix[2, 2] - rot_matrix[0, 0] - rot_matrix[1, 1])
-                w = (rot_matrix[1, 0] - rot_matrix[0, 1]) / s
-                x = (rot_matrix[0, 2] + rot_matrix[2, 0]) / s
-                y = (rot_matrix[1, 2] + rot_matrix[2, 1]) / s
-                z = 0.25 * s
-        
-        # Return quaternion in [w, x, y, z] format
-        return np.array([w, x, y, z]) 
 
     def get_observation(self) -> dict:
         """Get observation in the format expected by the policy."""
