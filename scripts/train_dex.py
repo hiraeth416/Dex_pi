@@ -279,4 +279,11 @@ def main(config: _config.TrainConfig):
 
 
 if __name__ == "__main__":
+    import os
+    from multiprocessing import cpu_count 
+    cpu_num = cpu_count()
+    cpu_use = 4
+    cur_pid = os.getpid()
+    os.sched_setaffinity(cur_pid, list(range(cpu_num))[:cpu_use])
+    print(f"set the max number of cpu used to {cpu_use}")
     main(_config.cli())

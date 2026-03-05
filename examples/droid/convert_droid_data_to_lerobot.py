@@ -34,9 +34,12 @@ def resize_image(image, size):
     return np.array(image.resize(size, resample=Image.BICUBIC))
 
 
-def main(data_dir: str, *, push_to_hub: bool = False):
+def main(data_dir: str, output_dir: str = None, *, push_to_hub: bool = False):
     # Clean up any existing dataset in the output directory
-    output_path = HF_LEROBOT_HOME / REPO_NAME
+    if output_dir is not None:
+        output_path = Path(output_dir)
+    else:
+        output_path = HF_LEROBOT_HOME / REPO_NAME
     if output_path.exists():
         shutil.rmtree(output_path)
     data_dir = Path(data_dir)
@@ -45,7 +48,7 @@ def main(data_dir: str, *, push_to_hub: bool = False):
     # We will follow the DROID data naming conventions here.
     # LeRobot assumes that dtype of image data is `image`
     dataset = LeRobotDataset.create(
-        repo_id=REPO_NAME,
+        repo_id=output_path if not push_to_hub else REPO_NAME,
         robot_type="panda",
         fps=15,  # DROID data is typically recorded at 15fps
         features={
@@ -87,7 +90,7 @@ def main(data_dir: str, *, push_to_hub: bool = False):
 
     # Load language annotations
     # Note: we load the DROID language annotations for this example, but you can manually define them for your own data
-    with (data_dir / "aggregated-annotations-030724.json").open() as f:
+    with (data_dir / "dataset_info.json").open() as f:  #dataset_info  features
         language_annotations = json.load(f)
 
     # Loop over raw DROID fine-tuning datasets and write episodes to the LeRobot dataset

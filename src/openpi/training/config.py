@@ -1077,7 +1077,7 @@ _CONFIGS = [
             use_side_camera=False,  # Set to True to also load side camera as left_wrist_0_rgb
             default_prompt=None,  # Will use prompts from metadata
         ),
-        batch_size=4,
+        batch_size=8,
         # Model configuration:
         # - action_dim: Set to 32 to match pretrained pi0.5 model (will pad 26->32)
         # - The model will output 32-dim actions, but DexOutputs will extract first 26
@@ -1089,9 +1089,9 @@ _CONFIGS = [
             action_expert_variant="gemma_300m_lora",  # Use "dummy" for testing, "gemma_300m" for real training
         ),
         save_interval=1000,
-        overwrite=True,
+        #overwrite=True,
         exp_name="dex_pi05",
-        num_train_steps=10000,
+        num_train_steps=50000,
         num_workers=4,  # Increase for faster data loading
         wandb_enabled=True,  
         freeze_filter=pi0_config.Pi0Config(

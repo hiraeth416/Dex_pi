@@ -154,6 +154,9 @@ class IsaacSimEnvironment:
         
         # Set solver parameters for better stability
         physics_ctx.set_solver_type("TGS")  # Temporal Gauss-Seidel solver
+
+        # Enable fabric simulation for better contact handling
+        physics_ctx.enable_fabric(True)
         
         print(f"Physics context configured:")
         print(f"  Timestep: {physics_ctx.get_physics_dt():.4f}s ({1.0/physics_ctx.get_physics_dt():.1f} Hz)")
@@ -174,14 +177,27 @@ class IsaacSimEnvironment:
         import omni.kit.commands
         from isaacsim.core.utils.extensions import get_extension_path_from_name
         from isaacsim.asset.importer.urdf import _urdf
+
         
+        # Add Target Object (Cube)
+        self.cube = self.world.scene.add(
+            DynamicCuboid(
+                prim_path="/World/Cube",
+                name="cube",
+                position=np.array([0.0, 0.0, 0.0]), # In front of the hand
+                #scale=np.array([0.05, 0.05, 0.05]),
+                size=0.05,
+                color=np.array([1.0, 0.0, 0.0]),  # Bright red
+                mass=1.0  # Light mass for easier manipulation
+            )
+        )
+
         # Create import configuration
         import_config = _urdf.ImportConfig()
         import_config.merge_fixed_joints = False
         import_config.fix_base = True
         import_config.import_inertia_tensor = True
         import_config.self_collision = True
-
         
         # Create a Urdf interface and parse the URDF
         urdf_interface = _urdf.acquire_urdf_interface()
@@ -203,11 +219,11 @@ class IsaacSimEnvironment:
             Robot(
                 prim_path=prim_path,
                 name="mano_hand",
-                position=np.array([0.2, 0.0, 0.5]), # Lift it up a bit
+                position=np.array([-0.8, -0.8, 1.5]), # Lift it up a bit
                 orientation=np.array([1.0, 0.0, 0.0, 0.0]),
             )
         )
-        
+
         # Set contact properties for the robot (for better grasping)
         from pxr import UsdPhysics, PhysxSchema
         stage = omni.usd.get_context().get_stage()
@@ -222,21 +238,8 @@ class IsaacSimEnvironment:
                 physx_collision_api.CreateRestOffsetAttr(0.001)
         
         print(f"Robot collision properties configured for better grasping")
-        
-        # Add Target Object (Cube)
-        self.cube = self.world.scene.add(
-            DynamicCuboid(
-                prim_path="/World/Cube",
-                name="cube",
-                position=np.array([0.0, 0.0, 0.1]), # In front of the hand
-                scale=np.array([0.05, 0.05, 0.05]),
-                color=np.array([1.0, 0.0, 0.0]),  # Bright red
-                mass=0.1  # Light mass for easier manipulation
-            )
-        )
 
         # Setup Cameras
-        # Hand is at (0.4, 0.0, 0.5), cube is at (0.4, 0.0, 0.1)
         # Camera should look at these positions
         ego_position = np.array([0.0, 0.0, 5.0])  # Above and in front, looking at x=0.4
         ego_target = np.array([0.4, 0.0, 0.3])    # Look at midpoint between hand and cube
@@ -262,6 +265,9 @@ class IsaacSimEnvironment:
             
         # Ensure rendering is set up
         self.world.step(render=True)
+        self.world.step(render=True)
+        self.world.step(render=True)
+
         
         # Test camera capture
         test_frame = self.ego_camera.get_rgba()
@@ -395,7 +401,8 @@ class IsaacSimEnvironment:
         # Assuming position control
         articulation_action = ArticulationAction(joint_positions=action_isaac)
         
-        self.robot.apply_action(articulation_action)
+        if not self.args.debug:
+            self.robot.apply_action(articulation_action)
         self.world.step(render=True)
     
     def check_grasp_success(self, height_threshold: float = 0.60) -> bool:
@@ -412,7 +419,6 @@ class IsaacSimEnvironment:
         cube_z = cube_position[2]
         
         # Check if cube has been lifted above the threshold
-        # Initial cube z position is 0.05, so lifting above 0.15 indicates success
         is_grasped = cube_z > height_threshold
         
         return is_grasped
@@ -524,6 +530,9 @@ def main(args: Args):
             try:
                 env.world.reset()
                 env.ego_camera.initialize()
+                env.world.step(render=True)
+                env.world.step(render=True)
+                env.world.step(render=True)
                 if args.use_side_camera and env.side_camera:
                     env.side_camera.initialize()
                 logger.info("Environment reset successful")
@@ -572,7 +581,8 @@ def main(args: Args):
                     # Debug mode: use random actions
                     try:
                         # Generate random joint positions in valid range (-1, 1)
-                        action = np.random.uniform(-0.5, 0.5, size=args.robot_dof).astype(np.float32)
+                        #action = np.random.uniform(-0.5, 0.5, size=args.robot_dof).astype(np.float32)
+                        action = np.zeros_like(np.random.uniform(-0.5, 0.5, size=args.robot_dof).astype(np.float32))
                     except Exception as e:
                         logger.error(f"Failed to generate random action at episode {episode_idx}, step {step_idx}: {e}\n{traceback.format_exc()}")
                         print(f"✗ Failed to generate random action at step {step_idx}: {e}")

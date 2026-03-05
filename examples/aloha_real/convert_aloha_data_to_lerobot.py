@@ -159,7 +159,7 @@ def load_raw_images_per_camera(ep: h5py.File, cameras: list[str]) -> dict[str, n
             imgs_array = np.array(imgs_array)
 
         imgs_per_cam[camera] = imgs_array
-    return imgs_per_cam
+    return imgs_per_cam 
 
 
 def load_raw_episode_data(
